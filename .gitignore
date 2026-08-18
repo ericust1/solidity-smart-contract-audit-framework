@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+artifacts/
+cache/
+dist/
+reports/
+.env
+.coverage
+htmlcov/
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.log
+.DS_Store
+package-lock.json

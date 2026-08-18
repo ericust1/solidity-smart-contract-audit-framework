@@ -1,0 +1,69 @@
+name: Smart Contract Audit CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install solc
+        run: |
+          pip install solc-select
+          solc-select install 0.8.20
+          solc-select use 0.8.20
+          solc --version
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install slither-analyzer mythril web3 pytest
+
+      - name: Install Hardhat
+        run: |
+          npm init -y 2>/dev/null || true
+          npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
+
+      - name: Compile contracts
+        run: npx hardhat compile || echo 'Hardhat compile skipped'
+
+      - name: Run Slither analysis (informational)
+        run: |
+          python src/core/slither_runner.py contracts/ --output reports/ci_slither.md 2>&1 || true
+          if [ -f reports/ci_slither.md ]; then
+            echo '=== Slither Report ==='
+            head -30 reports/ci_slither.md
+          fi
+
+      - name: Check Slither findings on HardenedDEX
+        run: |
+          python src/core/slither_runner.py contracts/HardenedDEX.sol --output reports/ci_hardened_check.md --fail-on-high 2>&1
+
+      - name: Run Mythril analysis
+        run: |
+          python src/core/mythril_runner.py contracts/VulnerableDEX.sol --output reports/ci_mythril.md --timeout 120 2>&1 || true
+
+      - name: Run Python tests
+        run: python -m pytest tests/ -v --tb=short
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-reports
+          path: reports/
